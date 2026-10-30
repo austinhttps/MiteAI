@@ -1,5 +1,8 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/MiteAI.App/MiteAI.App.csproj">
+      <Platform Project="x64" />
+    </Project>
     <Project Path="src/MiteAI.Core/MiteAI.Core.csproj" />
   </Folder>
   <Folder Name="/tests/">
