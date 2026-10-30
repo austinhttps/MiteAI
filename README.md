@@ -48,6 +48,11 @@ Mite is a native Windows 11 desktop assistant built in C# and .NET 10. It execut
 - **Deterministic Privacy Filters:** Strips credentials, payment cards, and social security numbers before storing records in SQLite.
 - **Context Blindspots:** Automatically disables context capture when password managers or banking applications hold system focus.
 - **Guarded System Actions:** Displays script contents, target paths, and risk ratings in a dry-run confirmation modal before running system operations.
+- **Smart Clipboard Transforms:** Parses clipboard text into formatted JSON or Markdown tables with integrated PII redaction.
+- **Active Window Context:** Extracts foreground window title and text buffers, suppressing data automatically when private applications are active.
+- **Custom URI Automation:** Supports desktop shortcuts and external automation via `mite://prompt?text="..."` handlers.
+- **Persona Profiles:** Dynamic system prompt switching mapped to focused processes (such as developer tools or text editors).
+- **Background Agent Coordinator:** Offloads multi-step organization tasks with progress tracking and batch modification rate limiting.
 - **Power and Memory Management:** Degrades operational tiers on battery power and unloads model weights after three minutes of system idle time.
 
 ## Architecture and Data Flow
@@ -81,7 +86,7 @@ When clipboard data or window titles enter the pipeline:
 Execute the automated test suite from the repository root:
 
 ```powershell
-dotnet test tests/MiteAI.Tests/MiteAI.Tests.csproj
+dotnet test MiteAI.slnx
 ```
 
 ### Building the Application
