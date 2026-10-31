@@ -3,6 +3,7 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:local="using:MiteAI.App"
+    xmlns:tb="using:H.NotifyIcon"
     Title="Mite - Windows 11 On-Device Assistant">
 
     <Grid Padding="24" Background="{ThemeResource LayerFillColorDefaultBrush}">
@@ -12,6 +13,17 @@
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
+
+        <!-- System Tray TaskbarIcon -->
+        <tb:TaskbarIcon
+            x:Name="TrayIcon"
+            ToolTipText="MiteAI Assistant">
+            <tb:TaskbarIcon.ContextFlyout>
+                <MenuFlyout>
+                    <MenuFlyoutItem Text="Exit MiteAI" Click="ExitMenuFlyoutItem_Click" />
+                </MenuFlyout>
+            </tb:TaskbarIcon.ContextFlyout>
+        </tb:TaskbarIcon>
 
         <!-- Header / Status Bar -->
         <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="12" Margin="0,0,0,16">

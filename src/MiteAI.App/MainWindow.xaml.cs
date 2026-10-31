@@ -62,6 +62,15 @@ public sealed partial class MainWindow : Window
 
         _hook = new WindowMessageHook(hwnd);
         _hook.HotKeyPressed += OnHotKeyPressed;
+
+        try
+        {
+            TrayIcon.Icon = System.Drawing.SystemIcons.Application;
+        }
+        catch
+        {
+            // Fallback if headless
+        }
     }
 
     private async void OnHotKeyPressed(object? sender, uint hotkeyId)
@@ -79,6 +88,11 @@ public sealed partial class MainWindow : Window
             string response = await _inferenceEngine.ProcessAsync(clipboardText);
             OutputText.Text = response;
         }
+    }
+
+    private void ExitMenuFlyoutItem_Click(object? sender, RoutedEventArgs e)
+    {
+        Application.Current.Exit();
     }
 
     private async void ExecuteButton_Click(object? sender, RoutedEventArgs e)
