@@ -13,6 +13,12 @@ public sealed partial class MainWindow : Window
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool RegisterHotKey(IntPtr hWnd, int id, uint fsModifiers, uint vk);
 
+    [DllImport("user32.dll")]
+    public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
+    [DllImport("user32.dll")]
+    public static extern bool SetForegroundWindow(IntPtr hWnd);
+
     private readonly FlyoutHudViewModel _viewModel;
     private WindowMessageHook _hook;
 
@@ -45,7 +51,10 @@ public sealed partial class MainWindow : Window
     {
         if (hotkeyId == 1)
         {
-            // Trigger your UI overlay logic here!
+            IntPtr hwnd = WindowNative.GetWindowHandle(this);
+            ShowWindow(hwnd, 9);
+            SetForegroundWindow(hwnd);
+            this.Activate();
             System.Diagnostics.Debug.WriteLine("Win + J Pressed!");
         }
     }
@@ -69,4 +78,3 @@ public sealed partial class MainWindow : Window
         await _viewModel.ExecutePromptStreamingAsync();
     }
 }
-
