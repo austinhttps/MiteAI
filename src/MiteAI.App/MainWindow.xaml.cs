@@ -1,12 +1,20 @@
+using System;
+using System.Runtime.InteropServices;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Input;
 using MiteAI.Core.ViewModels;
+using WinRT.Interop;
 
 namespace MiteAI.App;
 
 public sealed partial class MainWindow : Window
 {
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool RegisterHotKey(IntPtr hWnd, int id, uint fsModifiers, uint vk);
+
     private readonly FlyoutHudViewModel _viewModel;
+    private WindowMessageHook _hook;
 
     public MainWindow()
     {
@@ -23,14 +31,31 @@ public sealed partial class MainWindow : Window
                 StatusFooter.Text = $"Status: {_viewModel.StatusMessage}";
             }
         };
+
+        IntPtr hwnd = WindowNative.GetWindowHandle(this);
+        
+        // Modifier 0x0008 = Win Key. 0x4A = 'J' key. ID = 1.
+        RegisterHotKey(hwnd, 1, 0x0008, 0x4A); 
+        
+        _hook = new WindowMessageHook(hwnd);
+        _hook.HotKeyPressed += OnHotKeyPressed;
     }
 
-    private async void ExecuteButton_Click(object sender, RoutedEventArgs e)
+    private void OnHotKeyPressed(object? sender, uint hotkeyId)
+    {
+        if (hotkeyId == 1)
+        {
+            // Trigger your UI overlay logic here!
+            System.Diagnostics.Debug.WriteLine("Win + J Pressed!");
+        }
+    }
+
+    private async void ExecuteButton_Click(object? sender, RoutedEventArgs e)
     {
         await RunInferenceStreamingAsync();
     }
 
-    private async void PromptInput_KeyDown(object sender, KeyRoutedEventArgs e)
+    private async void PromptInput_KeyDown(object? sender, KeyRoutedEventArgs e)
     {
         if (e.Key == Windows.System.VirtualKey.Enter)
         {
@@ -44,3 +69,4 @@ public sealed partial class MainWindow : Window
         await _viewModel.ExecutePromptStreamingAsync();
     }
 }
+
