@@ -31,11 +31,16 @@
             <Button Grid.Column="1" Margin="8,0,0,0" Content="Run" Click="ExecuteButton_Click" Style="{ThemeResource AccentButtonStyle}" />
         </Grid>
 
-        <!-- Response Canvas -->
+        <!-- Modern Response Grid / Output Canvas -->
         <Border Grid.Row="2" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" Padding="16">
-            <ScrollViewer VerticalScrollBarVisibility="Auto">
-                <TextBlock x:Name="ResponseOutput" TextWrapping="Wrap" FontSize="13" Text="Press 'Run' or hit Enter to test on-device inference using MockInferenceService." />
-            </ScrollViewer>
+            <Grid>
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Spacing="8">
+                        <TextBlock x:Name="OutputText" TextWrapping="Wrap" FontSize="13" Text="Press Win + J to summon Mite and analyze clipboard text." />
+                        <TextBlock x:Name="ResponseOutput" TextWrapping="Wrap" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="" Visibility="Collapsed" />
+                    </StackPanel>
+                </ScrollViewer>
+            </Grid>
         </Border>
 
         <!-- Footer / Metrics Bar -->
