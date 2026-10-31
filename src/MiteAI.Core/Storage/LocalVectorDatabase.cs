@@ -15,7 +15,7 @@ public class LocalVectorDatabase : IDisposable
     public LocalVectorDatabase(string dbPath = "mite_storage.db")
     {
         _connectionString = dbPath == ":memory:" 
-            ? "Data Source=:memory:;Mode=Memory;Cache=Shared"
+            ? $"Data Source=InMemory_{Guid.NewGuid():N};Mode=Memory;Cache=Shared"
             : $"Data Source={dbPath}";
     }
 

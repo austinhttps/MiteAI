@@ -33,11 +33,22 @@ public class TextChunkingService
 
         int start = 0;
         int chunkIndex = 0;
-        int step = _chunkSize - _overlap;
 
         while (start < text.Length)
         {
-            int length = Math.Min(_chunkSize, text.Length - start);
+            int remaining = text.Length - start;
+            int length = Math.Min(_chunkSize, remaining);
+
+            // Attempt to break at the last word boundary (space or newline) if not at end of text
+            if (length < remaining)
+            {
+                int lastSpace = text.LastIndexOfAny(new[] { ' ', '\r', '\n', '\t' }, start + length - 1, Math.Min(length, _chunkSize / 2));
+                if (lastSpace > start)
+                {
+                    length = lastSpace - start;
+                }
+            }
+
             var content = text.Substring(start, length).Trim();
 
             if (content.Length > 0)
@@ -56,7 +67,13 @@ public class TextChunkingService
                 break;
             }
 
-            start += step;
+            // Advance start with overlap, ensuring forward progress
+            int nextStart = start + Math.Max(1, length - _overlap);
+            if (nextStart <= start)
+            {
+                nextStart = start + length;
+            }
+            start = nextStart;
         }
     }
 }
