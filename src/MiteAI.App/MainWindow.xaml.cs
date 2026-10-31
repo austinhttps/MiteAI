@@ -12,26 +12,35 @@ public sealed partial class MainWindow : Window
     {
         this.InitializeComponent();
         _viewModel = new FlyoutHudViewModel();
+        _viewModel.PropertyChanged += (s, e) =>
+        {
+            if (e.PropertyName == nameof(FlyoutHudViewModel.ResponseText))
+            {
+                ResponseOutput.Text = _viewModel.ResponseText;
+            }
+            else if (e.PropertyName == nameof(FlyoutHudViewModel.StatusMessage))
+            {
+                StatusFooter.Text = $"Status: {_viewModel.StatusMessage}";
+            }
+        };
     }
 
     private async void ExecuteButton_Click(object sender, RoutedEventArgs e)
     {
-        await RunInferenceAsync();
+        await RunInferenceStreamingAsync();
     }
 
     private async void PromptInput_KeyDown(object sender, KeyRoutedEventArgs e)
     {
         if (e.Key == Windows.System.VirtualKey.Enter)
         {
-            await RunInferenceAsync();
+            await RunInferenceStreamingAsync();
         }
     }
 
-    private async System.Threading.Tasks.Task RunInferenceAsync()
+    private async System.Threading.Tasks.Task RunInferenceStreamingAsync()
     {
         _viewModel.PromptText = PromptInput.Text;
-        await _viewModel.ExecutePromptAsync();
-        ResponseOutput.Text = _viewModel.ResponseText;
-        StatusFooter.Text = $"Status: {_viewModel.StatusMessage}";
+        await _viewModel.ExecutePromptStreamingAsync();
     }
 }

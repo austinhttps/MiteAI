@@ -47,4 +47,18 @@ public class FlyoutHudViewModelTests
         Assert.Empty(vm.ResponseText);
         Assert.False(vm.IsBusy);
     }
+
+    [Fact]
+    public async Task ExecutePromptStreaming_StreamsTokensProgressively()
+    {
+        var vm = new FlyoutHudViewModel();
+        vm.PromptText = "Explain local DirectML execution";
+
+        await vm.ExecutePromptStreamingAsync();
+
+        Assert.False(vm.IsBusy);
+        Assert.False(string.IsNullOrWhiteSpace(vm.ResponseText));
+        Assert.Contains("local", vm.ResponseText, System.StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Streaming complete", vm.StatusMessage);
+    }
 }

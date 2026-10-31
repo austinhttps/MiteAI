@@ -1,6 +1,8 @@
 using System;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using MiteAI.Core.Actions;
 using MiteAI.Core.Inference;
@@ -17,7 +19,7 @@ public class FlyoutHudViewModel : INotifyPropertyChanged
 
     private string _promptText = string.Empty;
     private string _responseText = string.Empty;
-    private string _statusMessage = "Ready (Mock Inference Active)";
+    private string _statusMessage = "Ready (DirectML / Local Inference Active)";
     private bool _isBusy = false;
     private bool _isFlyoutVisible = false;
 
@@ -89,6 +91,38 @@ public class FlyoutHudViewModel : INotifyPropertyChanged
         catch (Exception ex)
         {
             ResponseText = $"Error during local execution: {ex.Message}";
+            StatusMessage = "Inference halted.";
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    public async Task ExecutePromptStreamingAsync(CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(PromptText)) return;
+
+        IsBusy = true;
+        StatusMessage = "Streaming on-device...";
+        ResponseText = string.Empty;
+
+        try
+        {
+            var sanitized = _redactor.Redact(PromptText).SanitizedText;
+            var sb = new StringBuilder();
+
+            await foreach (var token in _inference.StreamGenerateAsync(new InferenceRequest(sanitized), cancellationToken))
+            {
+                sb.Append(token);
+                ResponseText = sb.ToString();
+            }
+
+            StatusMessage = "Streaming complete (Local Inference)";
+        }
+        catch (Exception ex)
+        {
+            ResponseText = $"Streaming error: {ex.Message}";
             StatusMessage = "Inference halted.";
         }
         finally
