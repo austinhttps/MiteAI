@@ -44,7 +44,8 @@ Mite is a native Windows 11 desktop assistant built in C# and .NET 10. It execut
 ## Core Capabilities
 
 - **Global Flyout HUD:** Press `Win + J` to open an acrylic and Mica interface with immediate focus.
-- **Hardware-Accelerated Inference:** Uses `Microsoft.ML.OnnxRuntime.DirectML` for GPU execution, with CPU fallback when dedicated graphics hardware is unavailable.
+- **Hardware-Accelerated Inference:** Uses `Microsoft.ML.OnnxRuntime.DirectML` for GPU execution, with progressive token streaming and CPU fallback on graphics memory exhaustion.
+- **Local RAG Pipeline:** Ingests documents, chunks them at natural word boundaries, generates local embeddings, and queries SQLite vector tables using cosine similarity.
 - **Deterministic Privacy Filters:** Strips credentials, payment cards, and social security numbers before storing records in SQLite.
 - **Context Blindspots:** Automatically disables context capture when password managers or banking applications hold system focus.
 - **Guarded System Actions:** Displays script contents, target paths, and risk ratings in a dry-run confirmation modal before running system operations.
@@ -59,12 +60,13 @@ Mite is a native Windows 11 desktop assistant built in C# and .NET 10. It execut
 
 All prompt evaluations, vector searches, and context parsers operate entirely on the local device. The application process runs under local Windows firewall boundaries that deny outbound socket connections.
 
-When clipboard data or window titles enter the pipeline:
+When clipboard data, window titles, or documents enter the pipeline:
 1. `ContextBlindspotService` evaluates the executable name and window header against a security blocklist. If a match occurs, the pipeline discards the input immediately.
 2. `PiiRedactionFilter` parses raw text using precompiled regex patterns to substitute sensitive tokens with explicit markers (`[REDACTED_SSN]`, `[REDACTED_CARD]`, `[REDACTED_API_KEY]`, `[REDACTED_EMAIL]`).
-3. `SmartClipboardParser` detects structured payloads (JSON, CSV) and formats them into readable representations.
-4. `LocalVectorDatabase` inserts sanitized text and 384-dimensional embedding vectors into SQLite tables for local cosine similarity search.
-5. `DryRunActionGate` intercepts administrative commands, computes risk levels (`Low`, `Medium`, `High`, `Critical`), and issues one-time authorization tokens requiring explicit operator approval.
+3. `TextChunkingService` segments long documents into overlapping passages, honoring word boundaries to avoid splitting tokens.
+4. `LocalRagService` generates embedding vectors locally and persists them to `LocalVectorDatabase` for nearest-neighbor similarity lookups.
+5. `DirectMLInferenceService` loads ONNX weights into GPU memory, streams generated text to the user interface, and falls back to CPU execution if graphics memory is constrained.
+6. `DryRunActionGate` intercepts administrative commands, computes risk levels (`Low`, `Medium`, `High`, `Critical`), and issues one-time authorization tokens requiring explicit operator approval.
 
 ## Technical Choices and Trade-offs
 
