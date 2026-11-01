@@ -1,20 +1,33 @@
 using System;
-using System.Net.Http;
-using System.Net.Http.Headers;
+using System.IO;
 using System.Text;
-using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using LLama;
+using LLama.Common;
 
 namespace MiteAI.App;
 
 public static class InferenceEngine
 {
+    private const string ModelPath = @"C:\Users\Austi\qwen2.5-coder-1.5b-instruct-q2_k.gguf";
+
     private static readonly Regex EmailRegex = new(
         @"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}",
         RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
-    private static readonly HttpClient HttpClient = new();
+    private static readonly Lazy<(ModelParams Parameters, LLamaWeights Weights, LLamaContext Context)> LazyModel =
+        new(() =>
+        {
+            var parameters = new ModelParams(ModelPath)
+            {
+                ContextSize = 2048,
+                GpuLayerCount = 0
+            };
+            var weights = LLamaWeights.LoadFromFile(parameters);
+            var context = weights.CreateContext(parameters);
+            return (parameters, weights, context);
+        });
 
     public static async Task<string> ProcessTextAsync(string clipboardText)
     {
@@ -23,72 +36,37 @@ public static class InferenceEngine
             return string.Empty;
         }
 
-        // Redact emails from the input using Regex
+        // 1. Regex PII redaction on clipboardText
         string redactedText = EmailRegex.Replace(clipboardText, "[REDACTED]");
 
-        // Local-First Graceful Degradation routing
-        string? apiKey = Environment.GetEnvironmentVariable("MITEAI_API_KEY", EnvironmentVariableTarget.User);
-        string endpoint;
-        string model;
-
-        if (string.IsNullOrWhiteSpace(apiKey))
+        if (!File.Exists(ModelPath))
         {
-            endpoint = "http://localhost:11434/v1/chat/completions";
-            apiKey = "local";
-            model = "qwen2.5";
-        }
-        else
-        {
-            endpoint = "https://api.openai.com/v1/chat/completions";
-            model = "gpt-4o-mini";
-        }
-
-        var payload = new
-        {
-            model = model,
-            messages = new[]
-            {
-                new { role = "user", content = redactedText }
-            }
-        };
-
-        string jsonPayload = JsonSerializer.Serialize(payload);
-        using var request = new HttpRequestMessage(HttpMethod.Post, endpoint)
-        {
-            Content = new StringContent(jsonPayload, Encoding.UTF8, "application/json")
-        };
-
-        if (!string.IsNullOrWhiteSpace(apiKey))
-        {
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+            return $"[MiteAI Error] Model file not found at: {ModelPath}";
         }
 
         try
         {
-            using var response = await HttpClient.SendAsync(request);
-            response.EnsureSuccessStatusCode();
+            var (parameters, weights, context) = LazyModel.Value;
+            var executor = new StatelessExecutor(weights, parameters);
 
-            string responseJson = await response.Content.ReadAsStringAsync();
-            using var responseDoc = JsonDocument.Parse(responseJson);
-
-            if (responseDoc.RootElement.TryGetProperty("choices", out var choices) &&
-                choices.GetArrayLength() > 0 &&
-                choices[0].TryGetProperty("message", out var message) &&
-                message.TryGetProperty("content", out var content))
+            var inferenceParams = new InferenceParams
             {
-                return content.GetString()?.Trim() ?? string.Empty;
+                MaxTokens = 256
+            };
+
+            var prompt = $"<|im_start|>system\nYou are MiteAI, a helpful desktop assistant.<|im_end|>\n<|im_start|>user\n{redactedText}<|im_end|>\n<|im_start|>assistant\n";
+
+            var sb = new StringBuilder();
+            await foreach (var token in executor.InferAsync(prompt, inferenceParams))
+            {
+                sb.Append(token);
             }
 
-            if (responseDoc.RootElement.TryGetProperty("response", out var ollamaResponse))
-            {
-                return ollamaResponse.GetString()?.Trim() ?? string.Empty;
-            }
-
-            return responseJson;
+            return sb.ToString().Trim();
         }
         catch (Exception ex)
         {
-            return $"Error during inference: {ex.Message}";
+            return $"Error during local inference: {ex.Message}";
         }
     }
 }
