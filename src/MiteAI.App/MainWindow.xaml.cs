@@ -2,7 +2,6 @@ using System;
 using System.Runtime.InteropServices;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Input;
-using MiteAI.Core.Inference;
 using MiteAI.Core.ViewModels;
 using WinRT.Interop;
 
@@ -30,14 +29,12 @@ public sealed partial class MainWindow : Window
     public static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
 
     private readonly FlyoutHudViewModel _viewModel;
-    private readonly InferenceEngine _inferenceEngine;
     private WindowMessageHook _hook;
 
     public MainWindow()
     {
         this.InitializeComponent();
         _viewModel = new FlyoutHudViewModel();
-        _inferenceEngine = new InferenceEngine();
 
         _viewModel.PropertyChanged += (s, e) =>
         {
@@ -85,8 +82,7 @@ public sealed partial class MainWindow : Window
 
             OutputText.Text = "Reading clipboard and analyzing...";
             string clipboardText = await ClipboardManager.GetTextAsync();
-            string response = await _inferenceEngine.ProcessAsync(clipboardText);
-            OutputText.Text = response;
+            OutputText.Text = await InferenceEngine.ProcessTextAsync(clipboardText);
         }
     }
 
