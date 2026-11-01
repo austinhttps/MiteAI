@@ -1,5 +1,4 @@
 using System;
-using System.IO;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
@@ -24,47 +23,29 @@ public static class InferenceEngine
             return string.Empty;
         }
 
-        // 1. Redact emails from the input using Regex
+        // Redact emails from the input using Regex
         string redactedText = EmailRegex.Replace(clipboardText, "[REDACTED]");
 
-        // 2. Read the AI_Endpoint and API_KEY from appsettings.json
-        string endpoint = "https://api.openai.com/v1/chat/completions";
-        string apiKey = string.Empty;
+        // Local-First Graceful Degradation routing
+        string? apiKey = Environment.GetEnvironmentVariable("MITEAI_API_KEY", EnvironmentVariableTarget.User);
+        string endpoint;
+        string model;
 
-        string appSettingsPath = Path.Combine(AppContext.BaseDirectory, "appsettings.json");
-        if (!File.Exists(appSettingsPath))
+        if (string.IsNullOrWhiteSpace(apiKey))
         {
-            appSettingsPath = Path.Combine(Directory.GetCurrentDirectory(), "appsettings.json");
+            endpoint = "http://localhost:11434/v1/chat/completions";
+            apiKey = "local";
+            model = "qwen2.5";
+        }
+        else
+        {
+            endpoint = "https://api.openai.com/v1/chat/completions";
+            model = "gpt-4o-mini";
         }
 
-        if (File.Exists(appSettingsPath))
-        {
-            try
-            {
-                string json = await File.ReadAllTextAsync(appSettingsPath);
-                using var doc = JsonDocument.Parse(json);
-                if (doc.RootElement.TryGetProperty("AI_Endpoint", out var epElem) &&
-                    epElem.GetString() is string ep && !string.IsNullOrWhiteSpace(ep))
-                {
-                    endpoint = ep;
-                }
-
-                if (doc.RootElement.TryGetProperty("API_KEY", out var keyElem) &&
-                    keyElem.GetString() is string key && !string.IsNullOrWhiteSpace(key))
-                {
-                    apiKey = key;
-                }
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Failed to parse appsettings.json: {ex.Message}");
-            }
-        }
-
-        // 3. Use HttpClient to send the redacted text to the endpoint as a JSON payload
         var payload = new
         {
-            model = "gpt-4o-mini",
+            model = model,
             messages = new[]
             {
                 new { role = "user", content = redactedText }
@@ -90,13 +71,17 @@ public static class InferenceEngine
             string responseJson = await response.Content.ReadAsStringAsync();
             using var responseDoc = JsonDocument.Parse(responseJson);
 
-            // 4. Return the string content of the AI's response
             if (responseDoc.RootElement.TryGetProperty("choices", out var choices) &&
                 choices.GetArrayLength() > 0 &&
                 choices[0].TryGetProperty("message", out var message) &&
                 message.TryGetProperty("content", out var content))
             {
                 return content.GetString()?.Trim() ?? string.Empty;
+            }
+
+            if (responseDoc.RootElement.TryGetProperty("response", out var ollamaResponse))
+            {
+                return ollamaResponse.GetString()?.Trim() ?? string.Empty;
             }
 
             return responseJson;
