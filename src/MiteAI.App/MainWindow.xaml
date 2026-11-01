@@ -48,7 +48,7 @@
             <Grid>
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel Spacing="8">
-                        <TextBlock x:Name="OutputText" TextWrapping="Wrap" FontSize="13" Text="Press Win + J to summon Mite and analyze clipboard text." />
+                        <TextBlock x:Name="OutputText" IsTextSelectionEnabled="True" TextWrapping="Wrap" FontSize="13" Text="Press Win + J to summon Mite and analyze clipboard text." />
                         <TextBlock x:Name="ResponseOutput" TextWrapping="Wrap" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="" Visibility="Collapsed" />
                     </StackPanel>
                 </ScrollViewer>
