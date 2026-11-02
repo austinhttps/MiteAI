@@ -2,6 +2,7 @@ using System;
 using System.Runtime.InteropServices;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Input;
+using MiteAI.Core.Privacy;
 using MiteAI.Core.ViewModels;
 using WinRT.Interop;
 
@@ -29,6 +30,7 @@ public sealed partial class MainWindow : Window
     public static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
 
     private readonly FlyoutHudViewModel _viewModel;
+    private readonly PiiRedactionFilter _privacyFilter = new();
     private WindowMessageHook _hook;
 
     public MainWindow()
@@ -81,8 +83,51 @@ public sealed partial class MainWindow : Window
             System.Diagnostics.Debug.WriteLine("Win + J Pressed!");
 
             OutputText.Text = "Reading clipboard and analyzing...";
+            StatusFooter.Text = "Status: Reading clipboard...";
+
             string clipboardText = await ClipboardManager.GetTextAsync();
-            OutputText.Text = await InferenceEngine.ProcessTextAsync(clipboardText);
+            if (string.IsNullOrWhiteSpace(clipboardText))
+            {
+                OutputText.Text = "Clipboard is empty or contains non-text data.";
+                StatusFooter.Text = "Status: Idle | No clipboard text detected";
+                return;
+            }
+
+            // Zero-trust full privacy redaction
+            var redaction = _privacyFilter.Redact(clipboardText);
+            if (redaction.RedactionCount > 0)
+            {
+                var types = string.Join(", ", redaction.DetectedTypes);
+                StatusFooter.Text = $"Status: Zero-Trust Redaction Active | Masked {redaction.RedactionCount} item(s) ({types})";
+            }
+            else
+            {
+                StatusFooter.Text = "Status: In-Process Inference | Streaming...";
+            }
+
+            OutputText.Text = string.Empty;
+
+            try
+            {
+                await foreach (var token in InferenceEngine.StreamTextAsync(redaction.SanitizedText))
+                {
+                    OutputText.Text += token;
+                }
+
+                if (string.IsNullOrWhiteSpace(OutputText.Text))
+                {
+                    OutputText.Text = "[No response generated]";
+                }
+
+                StatusFooter.Text = redaction.RedactionCount > 0
+                    ? $"Status: Complete | {redaction.RedactionCount} sensitive item(s) redacted"
+                    : "Status: Complete | In-Process Inference";
+            }
+            catch (Exception ex)
+            {
+                OutputText.Text = $"Error during local inference: {ex.Message}";
+                StatusFooter.Text = "Status: Inference error occurred";
+            }
         }
     }
 
@@ -106,7 +151,42 @@ public sealed partial class MainWindow : Window
 
     private async System.Threading.Tasks.Task RunInferenceStreamingAsync()
     {
-        _viewModel.PromptText = PromptInput.Text;
-        await _viewModel.ExecutePromptStreamingAsync();
+        string prompt = PromptInput.Text;
+        if (string.IsNullOrWhiteSpace(prompt)) return;
+
+        var redaction = _privacyFilter.Redact(prompt);
+        if (redaction.RedactionCount > 0)
+        {
+            var types = string.Join(", ", redaction.DetectedTypes);
+            StatusFooter.Text = $"Status: Zero-Trust Redaction Active | Masked {redaction.RedactionCount} item(s) ({types})";
+        }
+        else
+        {
+            StatusFooter.Text = "Status: In-Process Inference | Streaming...";
+        }
+
+        OutputText.Text = string.Empty;
+
+        try
+        {
+            await foreach (var token in InferenceEngine.StreamTextAsync(redaction.SanitizedText))
+            {
+                OutputText.Text += token;
+            }
+
+            if (string.IsNullOrWhiteSpace(OutputText.Text))
+            {
+                OutputText.Text = "[No response generated]";
+            }
+
+            StatusFooter.Text = redaction.RedactionCount > 0
+                ? $"Status: Complete | {redaction.RedactionCount} sensitive item(s) redacted"
+                : "Status: Complete | In-Process Inference";
+        }
+        catch (Exception ex)
+        {
+            OutputText.Text = $"Error during local inference: {ex.Message}";
+            StatusFooter.Text = "Status: Inference error occurred";
+        }
     }
 }
