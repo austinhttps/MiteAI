@@ -1,5 +1,7 @@
 using System;
 using System.Runtime.InteropServices;
+using System.Text;
+using System.Threading;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Input;
 using MiteAI.Core.Privacy;
@@ -29,9 +31,20 @@ public sealed partial class MainWindow : Window
     [DllImport("user32.dll")]
     public static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
 
+    [DllImport("user32.dll")]
+    public static extern IntPtr GetForegroundWindow();
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    public static extern int GetWindowText(IntPtr hWnd, StringBuilder lpString, int nMaxCount);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
+
     private readonly FlyoutHudViewModel _viewModel;
     private readonly PiiRedactionFilter _privacyFilter = new();
+    private readonly ContextBlindspotService _blindspotService = new();
     private WindowMessageHook _hook;
+    private CancellationTokenSource? _inferenceCts;
 
     public MainWindow()
     {
@@ -72,15 +85,80 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    private static (string WindowTitle, string ProcessName) GetForegroundWindowInfo()
+    {
+        IntPtr fgHwnd = GetForegroundWindow();
+        if (fgHwnd == IntPtr.Zero)
+        {
+            return (string.Empty, string.Empty);
+        }
+
+        var sb = new StringBuilder(512);
+        GetWindowText(fgHwnd, sb, sb.Capacity);
+        string windowTitle = sb.ToString();
+
+        string processName = string.Empty;
+        GetWindowThreadProcessId(fgHwnd, out uint pid);
+        if (pid != 0)
+        {
+            try
+            {
+                using var proc = System.Diagnostics.Process.GetProcessById((int)pid);
+                processName = proc.ProcessName;
+            }
+            catch
+            {
+            }
+        }
+
+        return (windowTitle, processName);
+    }
+
+    private void HideOverlay()
+    {
+        try
+        {
+            _inferenceCts?.Cancel();
+        }
+        catch
+        {
+        }
+
+        IntPtr hwnd = WindowNative.GetWindowHandle(this);
+        ShowWindow(hwnd, 0); // SW_HIDE
+    }
+
+    private void RootGrid_KeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (e.Key == Windows.System.VirtualKey.Escape)
+        {
+            HideOverlay();
+            e.Handled = true;
+        }
+    }
+
     private async void OnHotKeyPressed(object? sender, uint hotkeyId)
     {
         if (hotkeyId == 1)
         {
+            // 1. Inspect foreground window BEFORE switching focus or touching clipboard
+            var (windowTitle, processName) = GetForegroundWindowInfo();
+            bool isExcluded = _blindspotService.IsExcluded(windowTitle, processName);
+
             IntPtr hwnd = WindowNative.GetWindowHandle(this);
-            ShowWindow(hwnd, 9);
+            ShowWindow(hwnd, 9); // SW_RESTORE
             SetForegroundWindow(hwnd);
             this.Activate();
-            System.Diagnostics.Debug.WriteLine("Win + J Pressed!");
+            PromptInput.Focus(FocusState.Programmatic);
+            System.Diagnostics.Debug.WriteLine($"Win + J Pressed! Foreground: '{windowTitle}' ({processName})");
+
+            // Context Blindspot Guard: Block clipboard read if sensitive app was active
+            if (isExcluded)
+            {
+                OutputText.Text = "Context suppressed: Focused application is on your privacy blocklist (password manager or financial portal). Clipboard ingestion halted to prevent secret exfiltration.";
+                StatusFooter.Text = $"Status: Ingestion Blocked — Sensitive App Active ({processName})";
+                return;
+            }
 
             OutputText.Text = "Reading clipboard and analyzing...";
             StatusFooter.Text = "Status: Reading clipboard...";
@@ -107,9 +185,13 @@ public sealed partial class MainWindow : Window
 
             OutputText.Text = string.Empty;
 
+            _inferenceCts?.Cancel();
+            _inferenceCts = new CancellationTokenSource();
+            var ct = _inferenceCts.Token;
+
             try
             {
-                await foreach (var token in InferenceEngine.StreamTextAsync(redaction.SanitizedText))
+                await foreach (var token in InferenceEngine.StreamTextAsync(redaction.SanitizedText, ct))
                 {
                     OutputText.Text += token;
                 }
@@ -122,6 +204,10 @@ public sealed partial class MainWindow : Window
                 StatusFooter.Text = redaction.RedactionCount > 0
                     ? $"Status: Complete | {redaction.RedactionCount} sensitive item(s) redacted"
                     : "Status: Complete | In-Process Inference";
+            }
+            catch (OperationCanceledException)
+            {
+                StatusFooter.Text = "Status: Generation dismissed";
             }
             catch (Exception ex)
             {
@@ -143,6 +229,13 @@ public sealed partial class MainWindow : Window
 
     private async void PromptInput_KeyDown(object? sender, KeyRoutedEventArgs e)
     {
+        if (e.Key == Windows.System.VirtualKey.Escape)
+        {
+            HideOverlay();
+            e.Handled = true;
+            return;
+        }
+
         if (e.Key == Windows.System.VirtualKey.Enter)
         {
             await RunInferenceStreamingAsync();
@@ -167,9 +260,13 @@ public sealed partial class MainWindow : Window
 
         OutputText.Text = string.Empty;
 
+        _inferenceCts?.Cancel();
+        _inferenceCts = new CancellationTokenSource();
+        var ct = _inferenceCts.Token;
+
         try
         {
-            await foreach (var token in InferenceEngine.StreamTextAsync(redaction.SanitizedText))
+            await foreach (var token in InferenceEngine.StreamTextAsync(redaction.SanitizedText, ct))
             {
                 OutputText.Text += token;
             }
@@ -182,6 +279,10 @@ public sealed partial class MainWindow : Window
             StatusFooter.Text = redaction.RedactionCount > 0
                 ? $"Status: Complete | {redaction.RedactionCount} sensitive item(s) redacted"
                 : "Status: Complete | In-Process Inference";
+        }
+        catch (OperationCanceledException)
+        {
+            StatusFooter.Text = "Status: Generation dismissed";
         }
         catch (Exception ex)
         {

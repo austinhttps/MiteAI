@@ -6,7 +6,7 @@
     xmlns:tb="using:H.NotifyIcon"
     Title="Mite - Windows 11 On-Device Assistant">
 
-    <Grid Padding="24" Background="{ThemeResource LayerFillColorDefaultBrush}">
+    <Grid x:Name="RootGrid" KeyDown="RootGrid_KeyDown" Padding="24" Background="{ThemeResource LayerFillColorDefaultBrush}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
