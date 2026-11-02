@@ -317,7 +317,7 @@ public sealed partial class MainWindow : Window
             }
             catch (Exception ex)
             {
-                OutputText.Text = $"Error during local inference: {ex.Message}";
+                OutputText.Text = $"Error during local inference: {ex}";
                 StatusFooter.Text = "Status: Inference error occurred";
             }
         }

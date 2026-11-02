@@ -8,6 +8,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using LLama;
 using LLama.Common;
+using LLama.Sampling;
 using MiteAI.Core.Privacy;
 
 namespace MiteAI.App;
@@ -188,7 +189,12 @@ public static class InferenceEngine
 
         using var context = _weights!.CreateContext(_parameters!);
         var executor = new InteractiveExecutor(context);
-        var inferenceParams = new InferenceParams { MaxTokens = 256 };
+        var inferenceParams = new InferenceParams
+        {
+            MaxTokens = 256,
+            AntiPrompts = ["User:", "Context:"],
+            SamplingPipeline = new DefaultSamplingPipeline()
+        };
 
         string prompt = string.IsNullOrWhiteSpace(ragContext)
             ? $"Process this text:\n{redactedText}\n\nResponse:"
