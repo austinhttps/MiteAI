@@ -20,6 +20,9 @@
             ToolTipText="MiteAI Assistant">
             <tb:TaskbarIcon.ContextFlyout>
                 <MenuFlyout>
+                    <MenuFlyoutItem Text="Open Knowledge Folder" Click="OpenKnowledgeFolder_Click" />
+                    <MenuFlyoutItem Text="Re-index Knowledge" Click="ReindexKnowledge_Click" />
+                    <MenuFlyoutSeparator />
                     <MenuFlyoutItem Text="Change Model..." Click="ChangeModelMenuFlyoutItem_Click" />
                     <MenuFlyoutSeparator />
                     <MenuFlyoutItem Text="Exit MiteAI" Click="ExitMenuFlyoutItem_Click" />
@@ -34,6 +37,7 @@
                 <TextBlock x:Name="ModelBadge" Text="Local LLM" Foreground="White" FontSize="11" FontWeight="Medium" />
             </Border>
             <Button x:Name="ChooseModelButton" Content="Select Model..." Click="ChangeModelMenuFlyoutItem_Click" FontSize="11" Padding="8,2" VerticalAlignment="Center" />
+            <Button Content="Knowledge Base" Click="OpenKnowledgeFolder_Click" FontSize="11" Padding="8,2" VerticalAlignment="Center" />
         </StackPanel>
 
         <!-- Summoning HUD Input Bar -->

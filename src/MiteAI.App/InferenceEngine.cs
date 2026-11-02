@@ -164,6 +164,7 @@ public static class InferenceEngine
 
     public static async IAsyncEnumerable<string> StreamTextAsync(
         string clipboardText,
+        string? ragContext = null,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(clipboardText))
@@ -189,7 +190,9 @@ public static class InferenceEngine
         var executor = new InteractiveExecutor(context);
         var inferenceParams = new InferenceParams { MaxTokens = 256 };
 
-        string prompt = $"Process this text:\n{redactedText}\n\nResponse:";
+        string prompt = string.IsNullOrWhiteSpace(ragContext)
+            ? $"Process this text:\n{redactedText}\n\nResponse:"
+            : $"Context from local knowledge:\n{ragContext}\n\nProcess this text with the above context:\n{redactedText}\n\nResponse:";
 
         await foreach (var token in executor.InferAsync(prompt, inferenceParams, cancellationToken))
         {
@@ -197,12 +200,12 @@ public static class InferenceEngine
         }
     }
 
-    public static async Task<string> ProcessTextAsync(string clipboardText)
+    public static async Task<string> ProcessTextAsync(string clipboardText, string? ragContext = null)
     {
         try
         {
             var sb = new StringBuilder();
-            await foreach (var token in StreamTextAsync(clipboardText))
+            await foreach (var token in StreamTextAsync(clipboardText, ragContext))
             {
                 sb.Append(token);
             }

@@ -43,6 +43,7 @@ public sealed partial class MainWindow : Window
     private readonly FlyoutHudViewModel _viewModel;
     private readonly PiiRedactionFilter _privacyFilter = new();
     private readonly ContextBlindspotService _blindspotService = new();
+    private readonly KnowledgeRagManager _ragManager = new();
     private WindowMessageHook _hook;
     private CancellationTokenSource? _inferenceCts;
 
@@ -84,6 +85,38 @@ public sealed partial class MainWindow : Window
         {
             // Fallback if headless
         }
+
+        _ = InitializeRagAsync();
+    }
+
+    private async System.Threading.Tasks.Task InitializeRagAsync()
+    {
+        try
+        {
+            await _ragManager.InitializeAsync();
+            System.Diagnostics.Debug.WriteLine($"RAG Initialized: {_ragManager.IndexedFilesCount} files, {_ragManager.IndexedChunksCount} chunks.");
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Failed to initialize RAG: {ex.Message}");
+        }
+    }
+
+    private void OpenKnowledgeFolder_Click(object? sender, RoutedEventArgs e)
+    {
+        KnowledgeRagManager.EnsureDefaultKnowledgeDirectory();
+        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+        {
+            FileName = KnowledgeRagManager.KnowledgeDirectory,
+            UseShellExecute = true
+        });
+    }
+
+    private async void ReindexKnowledge_Click(object? sender, RoutedEventArgs e)
+    {
+        StatusFooter.Text = "Status: Indexing Knowledge Folder...";
+        int chunks = await _ragManager.SyncKnowledgeFilesAsync();
+        StatusFooter.Text = $"Status: Indexed {_ragManager.IndexedFilesCount} files ({chunks} chunks)";
     }
 
     private async System.Threading.Tasks.Task<string?> PickModelFileAsync()
@@ -248,9 +281,23 @@ public sealed partial class MainWindow : Window
             _inferenceCts = new CancellationTokenSource();
             var ct = _inferenceCts.Token;
 
+            // Query Local Vector RAG for relevant context
+            string? ragContext = null;
             try
             {
-                await foreach (var token in InferenceEngine.StreamTextAsync(redaction.SanitizedText, ct))
+                ragContext = await _ragManager.GetRelevantContextAsync(redaction.SanitizedText, topK: 3, cancellationToken: ct);
+                if (!string.IsNullOrEmpty(ragContext))
+                {
+                    StatusFooter.Text = "Status: Augmented with Local Knowledge | Streaming...";
+                }
+            }
+            catch
+            {
+            }
+
+            try
+            {
+                await foreach (var token in InferenceEngine.StreamTextAsync(redaction.SanitizedText, ragContext, ct))
                 {
                     OutputText.Text += token;
                 }
@@ -262,7 +309,7 @@ public sealed partial class MainWindow : Window
 
                 StatusFooter.Text = redaction.RedactionCount > 0
                     ? $"Status: Complete | {redaction.RedactionCount} sensitive item(s) redacted"
-                    : "Status: Complete | In-Process Inference";
+                    : (!string.IsNullOrEmpty(ragContext) ? "Status: Complete | Local Knowledge RAG Augmented" : "Status: Complete | In-Process Inference");
             }
             catch (OperationCanceledException)
             {
@@ -338,9 +385,23 @@ public sealed partial class MainWindow : Window
         _inferenceCts = new CancellationTokenSource();
         var ct = _inferenceCts.Token;
 
+        // Query Local Vector RAG for relevant context
+        string? ragContext = null;
         try
         {
-            await foreach (var token in InferenceEngine.StreamTextAsync(redaction.SanitizedText, ct))
+            ragContext = await _ragManager.GetRelevantContextAsync(redaction.SanitizedText, topK: 3, cancellationToken: ct);
+            if (!string.IsNullOrEmpty(ragContext))
+            {
+                StatusFooter.Text = "Status: Augmented with Local Knowledge | Streaming...";
+            }
+        }
+        catch
+        {
+        }
+
+        try
+        {
+            await foreach (var token in InferenceEngine.StreamTextAsync(redaction.SanitizedText, ragContext, ct))
             {
                 OutputText.Text += token;
             }
@@ -352,7 +413,7 @@ public sealed partial class MainWindow : Window
 
             StatusFooter.Text = redaction.RedactionCount > 0
                 ? $"Status: Complete | {redaction.RedactionCount} sensitive item(s) redacted"
-                : "Status: Complete | In-Process Inference";
+                : (!string.IsNullOrEmpty(ragContext) ? "Status: Complete | Local Knowledge RAG Augmented" : "Status: Complete | In-Process Inference");
         }
         catch (OperationCanceledException)
         {
