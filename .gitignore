@@ -3,6 +3,13 @@
 ##
 ## Get latest from `dotnet new gitignore`
 
+# Ignore local secrets
+appsettings.json
+
+# Ignore .NET build artifacts
+bin/
+obj/
+
 # dotenv files
 .env
 
