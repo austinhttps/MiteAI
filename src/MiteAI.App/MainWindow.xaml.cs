@@ -78,10 +78,54 @@ public sealed partial class MainWindow : Window
         try
         {
             TrayIcon.Icon = System.Drawing.SystemIcons.Application;
+            ModelBadge.Text = InferenceEngine.GetActiveModelName();
         }
         catch
         {
             // Fallback if headless
+        }
+    }
+
+    private async System.Threading.Tasks.Task<string?> PickModelFileAsync()
+    {
+        try
+        {
+            var picker = new Windows.Storage.Pickers.FileOpenPicker();
+            picker.ViewMode = Windows.Storage.Pickers.PickerViewMode.List;
+            picker.SuggestedStartLocation = Windows.Storage.Pickers.PickerLocationId.Downloads;
+            picker.FileTypeFilter.Add(".gguf");
+
+            IntPtr hwnd = WindowNative.GetWindowHandle(this);
+            WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
+
+            var file = await picker.PickSingleFileAsync();
+            if (file != null)
+            {
+                InferenceEngine.SetModelPath(file.Path);
+                ModelBadge.Text = System.IO.Path.GetFileName(file.Path);
+                return file.Path;
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error launching file picker: {ex.Message}");
+        }
+
+        return null;
+    }
+
+    private async void ChangeModelMenuFlyoutItem_Click(object? sender, RoutedEventArgs e)
+    {
+        IntPtr hwnd = WindowNative.GetWindowHandle(this);
+        ShowWindow(hwnd, 9);
+        SetForegroundWindow(hwnd);
+        this.Activate();
+
+        string? selected = await PickModelFileAsync();
+        if (!string.IsNullOrEmpty(selected))
+        {
+            OutputText.Text = $"Active model updated: {System.IO.Path.GetFileName(selected)}";
+            StatusFooter.Text = $"Status: Model Loaded ({System.IO.Path.GetFileName(selected)})";
         }
     }
 
@@ -158,6 +202,21 @@ public sealed partial class MainWindow : Window
                 OutputText.Text = "Context suppressed: Focused application is on your privacy blocklist (password manager or financial portal). Clipboard ingestion halted to prevent secret exfiltration.";
                 StatusFooter.Text = $"Status: Ingestion Blocked — Sensitive App Active ({processName})";
                 return;
+            }
+
+            // Check if model is available, or prompt user with native picker on first run
+            if (InferenceEngine.ResolveModelPath() == null)
+            {
+                OutputText.Text = "No local GGUF model found. Opening file picker to select a model...";
+                StatusFooter.Text = "Status: Select .gguf model";
+
+                string? selected = await PickModelFileAsync();
+                if (string.IsNullOrEmpty(selected))
+                {
+                    OutputText.Text = "Model selection was cancelled. Place a .gguf file in %LOCALAPPDATA%\\MiteAI\\models\\ or select one to continue.";
+                    StatusFooter.Text = "Status: Model Required";
+                    return;
+                }
             }
 
             OutputText.Text = "Reading clipboard and analyzing...";
@@ -246,6 +305,21 @@ public sealed partial class MainWindow : Window
     {
         string prompt = PromptInput.Text;
         if (string.IsNullOrWhiteSpace(prompt)) return;
+
+        // Check if model is available, or prompt user with native picker on first run
+        if (InferenceEngine.ResolveModelPath() == null)
+        {
+            OutputText.Text = "No local GGUF model found. Opening file picker to select a model...";
+            StatusFooter.Text = "Status: Select .gguf model";
+
+            string? selected = await PickModelFileAsync();
+            if (string.IsNullOrEmpty(selected))
+            {
+                OutputText.Text = "Model selection was cancelled. Place a .gguf file in %LOCALAPPDATA%\\MiteAI\\models\\ or select one to continue.";
+                StatusFooter.Text = "Status: Model Required";
+                return;
+            }
+        }
 
         var redaction = _privacyFilter.Redact(prompt);
         if (redaction.RedactionCount > 0)

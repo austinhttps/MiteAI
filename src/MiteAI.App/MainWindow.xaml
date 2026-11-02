@@ -20,6 +20,8 @@
             ToolTipText="MiteAI Assistant">
             <tb:TaskbarIcon.ContextFlyout>
                 <MenuFlyout>
+                    <MenuFlyoutItem Text="Change Model..." Click="ChangeModelMenuFlyoutItem_Click" />
+                    <MenuFlyoutSeparator />
                     <MenuFlyoutItem Text="Exit MiteAI" Click="ExitMenuFlyoutItem_Click" />
                 </MenuFlyout>
             </tb:TaskbarIcon.ContextFlyout>
@@ -29,8 +31,9 @@
         <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="12" Margin="0,0,0,16">
             <TextBlock Text="Mite AI Assistant" Style="{ThemeResource TitleTextBlockStyle}" FontWeight="SemiBold" />
             <Border Background="{ThemeResource AccentFillColorDefaultBrush}" CornerRadius="4" Padding="6,2" VerticalAlignment="Center">
-                <TextBlock Text="DirectML Local" Foreground="White" FontSize="11" FontWeight="Medium" />
+                <TextBlock x:Name="ModelBadge" Text="Local LLM" Foreground="White" FontSize="11" FontWeight="Medium" />
             </Border>
+            <Button x:Name="ChooseModelButton" Content="Select Model..." Click="ChangeModelMenuFlyoutItem_Click" FontSize="11" Padding="8,2" VerticalAlignment="Center" />
         </StackPanel>
 
         <!-- Summoning HUD Input Bar -->
